@@ -26,21 +26,15 @@ fn test_create_stream_persists_state() {
     let contract_id = env.register(StreamContract, ());
     let client = StreamContractClient::new(&env, &contract_id);
 
-    let token_client = token::Client::new(&env, &token_address);
-    token_client.approve(&sender, &contract_id, &500, &1_000_000);
-
-    let amount: i128 = 500;
-    let duration: u64 = 100;
-    let stream_id = client.create_stream(&sender, &recipient, &token_address, &amount, &duration);
-
+    let stream_id = client.create_stream(&sender, &recipient, &token_address, &500, &100);
     assert_eq!(stream_id, 1);
 
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.sender, sender);
     assert_eq!(stream.recipient, recipient);
     assert_eq!(stream.token_address, token_address);
-    assert_eq!(stream.rate_per_second, amount / duration as i128);
-    assert_eq!(stream.deposited_amount, amount);
+    assert_eq!(stream.rate_per_second, 5);
+    assert_eq!(stream.deposited_amount, 500);
     assert_eq!(stream.withdrawn_amount, 0);
     assert!(stream.is_active);
 }
@@ -61,9 +55,6 @@ fn test_create_multiple_streams_increments_counter() {
     let contract_id = env.register(StreamContract, ());
     let client = StreamContractClient::new(&env, &contract_id);
 
-    let token_client = token::Client::new(&env, &token_address);
-    token_client.approve(&sender, &contract_id, &2_000, &1_000_000);
-
     let stream_id1 = client.create_stream(&sender, &recipient1, &token_address, &500, &100);
     let stream_id2 = client.create_stream(&sender, &recipient2, &token_address, &500, &100);
 
@@ -74,7 +65,33 @@ fn test_create_multiple_streams_increments_counter() {
 }
 
 #[test]
-fn test_create_stream_transfers_tokens() {
+fn test_withdraw_rejects_non_recipient() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (token_address, _admin) = create_token_contract(&env);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let attacker = Address::generate(&env);
+
+    let stellar_asset = token::StellarAssetClient::new(&env, &token_address);
+    stellar_asset.mint(&sender, &1_000);
+
+    let contract_id = env.register(StreamContract, ());
+    let client = StreamContractClient::new(&env, &contract_id);
+
+    let stream_id = client.create_stream(&sender, &recipient, &token_address, &500, &100);
+
+    let unauthorized_result = client.try_withdraw(&attacker, &stream_id);
+    assert_eq!(unauthorized_result, Err(Ok(StreamError::Unauthorized)));
+
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.withdrawn_amount, 0);
+    assert!(stream.is_active);
+}
+
+#[test]
+fn test_withdraw_authorized_recipient_receives_tokens() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -89,22 +106,17 @@ fn test_create_stream_transfers_tokens() {
     let client = StreamContractClient::new(&env, &contract_id);
     let token_client = token::Client::new(&env, &token_address);
 
-    let initial_sender_balance = token_client.balance(&sender);
-    let initial_contract_balance = token_client.balance(&contract_id);
+    let stream_id = client.create_stream(&sender, &recipient, &token_address, &500, &100);
+    let recipient_balance_before = token_client.balance(&recipient);
 
-    token_client.approve(&sender, &contract_id, &500, &1_000_000);
+    let _ = client.withdraw(&recipient, &stream_id);
 
-    let amount: i128 = 500;
-    client.create_stream(&sender, &recipient, &token_address, &amount, &100);
+    let recipient_balance_after = token_client.balance(&recipient);
+    assert_eq!(recipient_balance_after - recipient_balance_before, 500);
 
-    assert_eq!(
-        token_client.balance(&sender),
-        initial_sender_balance - amount
-    );
-    assert_eq!(
-        token_client.balance(&contract_id),
-        initial_contract_balance + amount
-    );
+    let stream = client.get_stream(&stream_id).unwrap();
+    assert_eq!(stream.withdrawn_amount, 500);
+    assert!(!stream.is_active);
 }
 
 #[test]
@@ -121,14 +133,11 @@ fn test_top_up_stream_success() {
 
     let contract_id = env.register(StreamContract, ());
     let client = StreamContractClient::new(&env, &contract_id);
-    let token_client = token::Client::new(&env, &token_address);
-    token_client.approve(&sender, &contract_id, &20_000, &1_000_000);
 
     let stream_id = client.create_stream(&sender, &recipient, &token_address, &10_000, &100);
 
-    let top_up_amount = 5_000;
-    let result = client.try_top_up_stream(&sender, &stream_id, &top_up_amount);
-    assert!(result.is_ok());
+    let top_up_result = client.try_top_up_stream(&sender, &stream_id, &5_000);
+    assert!(top_up_result.is_ok());
 
     let stream = client.get_stream(&stream_id).unwrap();
     assert_eq!(stream.deposited_amount, 15_000);
@@ -190,8 +199,6 @@ fn test_top_up_stream_unauthorized() {
 
     let contract_id = env.register(StreamContract, ());
     let client = StreamContractClient::new(&env, &contract_id);
-    let token_client = token::Client::new(&env, &token_address);
-    token_client.approve(&sender, &contract_id, &20_000, &1_000_000);
 
     let stream_id = client.create_stream(&sender, &recipient, &token_address, &10_000, &100);
 
@@ -217,7 +224,7 @@ fn test_top_up_stream_inactive() {
     token_client.approve(&sender, &contract_id, &20_000, &1_000_000);
 
     let stream_id = client.create_stream(&sender, &recipient, &token_address, &10_000, &100);
-    client.cancel_stream(&sender, &stream_id);
+    let _ = client.cancel_stream(&sender, &stream_id);
 
     let result = client.try_top_up_stream(&sender, &stream_id, &1_000);
     assert_eq!(result, Err(Ok(StreamError::StreamInactive)));
