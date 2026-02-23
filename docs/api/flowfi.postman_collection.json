@@ -227,7 +227,29 @@
                 { "key": "Cache-Control", "value": "no-cache" },
                 { "key": "Connection", "value": "keep-alive" }
               ],
-              "body": "data: {\"type\":\"connected\",\"clientId\":\"abc123\",\"message\":\"SSE connection established\"}\n\nevent: stream.created\ndata: {\"id\":\"123\",\"status\":\"pending\",\"sender\":\"GABC123XYZ456DEF789GHI012JKL345MNO678PQR901STU234VWX567YZA\",\"recipient\":\"GDEF456ABC789GHI012JKL345MNO678PQR901STU234VWX567YZA123BCD\",\"amount\":10000,\"token\":\"CBCD789EFG012HIJ345KLM678NOP901QRS234TUV567WXY890ZAB123CDE\"}\n\n"
+              "body": "data: {\"type\":\"connected\",\"clientId\":\"1708531200-abc123xyz\"}\n\nevent: stream.created\ndata: {\"id\":\"123\",\"status\":\"pending\",\"sender\":\"GABC123XYZ456DEF789GHI012JKL345MNO678PQR901STU234VWX567YZA\",\"recipient\":\"GDEF456ABC789GHI012JKL345MNO678PQR901STU234VWX567YZA123BCD\",\"amount\":10000,\"token\":\"CBCD789EFG012HIJ345KLM678NOP901QRS234TUV567WXY890ZAB123CDE\"}\n\n"
+            },
+            {
+              "name": "400 Invalid subscription parameters",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "text/event-stream" },
+                  { "key": "Cache-Control", "value": "no-cache" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/subscribe",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "subscribe"]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+              ],
+              "body": "{\n  \"message\": \"Invalid subscription parameters\",\n  \"errors\": [\n    {\n      \"code\": \"invalid_type\",\n      \"path\": [\"all\"],\n      \"message\": \"Expected boolean, received string\"\n    }\n  ]\n}"
             }
           ]
         },
