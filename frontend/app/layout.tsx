@@ -4,11 +4,11 @@ import React from "react";
 
 import "./globals.css";
 import { WalletProvider } from "@/context/wallet-context";
-import Link from "next/link";
-
 import { Toaster } from "react-hot-toast";
 import { ThemeProvider } from "@/context/theme-provider";
-
+import { Banner } from "@/components/ui/Banner";
+import bannerConfig from "@/lib/banner.config";
+import Link from "next/link";
 
 const sora = Sora({
   variable: "--font-display",
@@ -80,7 +80,6 @@ export default function RootLayout({
   {children}
 </WalletProvider>
         </ThemeProvider>
-
       </body>
     </html>
   );

@@ -2,11 +2,14 @@
 import React from "react";
 
 import {
+  getDashboardAnalytics,
   getMockDashboardStats,
   type DashboardSnapshot,
 } from "@/lib/dashboard";
 import { shortenPublicKey, type WalletSession } from "@/lib/wallet";
 import IncomingStreams from "../IncomingStreams";
+import { StreamCreationWizard, type StreamFormData } from "../stream-creation/StreamCreationWizard";
+import { Button } from "../ui/Button";
 
 interface DashboardViewProps {
   session: WalletSession;
@@ -72,6 +75,20 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function formatAnalyticsValue(
+  value: number,
+  format: "currency" | "percent",
+): string {
+  if (format === "currency") {
+    return formatCurrency(value);
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 function formatActivityTime(timestamp: string): string {
   const date = new Date(timestamp);
 
@@ -83,6 +100,41 @@ function formatActivityTime(timestamp: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function renderAnalytics(snapshot: DashboardSnapshot | null) {
+  const metrics = getDashboardAnalytics(snapshot);
+
+  return (
+    <section className="dashboard-analytics-section" aria-label="Analytics overview">
+      <div className="dashboard-panel__header">
+        <h3>Analytics Overview</h3>
+        <span>Computed from wallet activity</span>
+      </div>
+
+      <div className="dashboard-analytics-grid">
+        {metrics.map((metric) => {
+          const isUnavailable = metric.value === null;
+
+          return (
+            <article
+              key={metric.id}
+              className="dashboard-analytics-card"
+              data-unavailable={isUnavailable ? "true" : undefined}
+            >
+              <p>{metric.label}</p>
+              <h2>
+                {isUnavailable
+                  ? "No data"
+                  : formatAnalyticsValue(metric.value, metric.format)}
+              </h2>
+              <span>{isUnavailable ? metric.unavailableText : metric.detail}</span>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 function renderStats(snapshot: DashboardSnapshot) {
@@ -749,12 +801,18 @@ export function DashboardView({ session, onDisconnect }: DashboardViewProps) {
                     <li>Invite a recipient to start receiving funds</li>
                     <li>Check back once transactions are confirmed</li>
                   </ul>
+                  <div className="mt-6">
+                    <Button onClick={() => setShowWizard(true)} glow>
+                      Create Your First Stream
+                    </Button>
+                  </div>
                 </section>
             );
         }
         return (
             <div className="dashboard-content-stack mt-8">
               {renderStats(stats)}
+              {renderAnalytics(stats)}
               {renderStreams(stats, handleTopUp)}
               {renderRecentActivity(stats)}
             </div>
@@ -796,9 +854,14 @@ export function DashboardView({ session, onDisconnect }: DashboardViewProps) {
             <h1>{SIDEBAR_ITEMS.find(item => item.id === activeTab)?.label}</h1>
           </div>
 
-          <div className="wallet-chip">
-            <span>{session.walletName}</span>
-            <strong>{shortenPublicKey(session.publicKey)}</strong>
+          <div className="flex items-center gap-4">
+            <Button onClick={() => setShowWizard(true)} glow>
+              Create Stream
+            </Button>
+            <div className="wallet-chip">
+              <span>{session.walletName}</span>
+              <strong>{shortenPublicKey(session.publicKey)}</strong>
+            </div>
           </div>
         </header>
 
@@ -817,6 +880,13 @@ export function DashboardView({ session, onDisconnect }: DashboardViewProps) {
           </button>
         </div>
       </section>
+
+      {showWizard && (
+        <StreamCreationWizard
+          onClose={() => setShowWizard(false)}
+          onSubmit={handleCreateStream}
+        />
+      )}
     </main>
   );
 }
